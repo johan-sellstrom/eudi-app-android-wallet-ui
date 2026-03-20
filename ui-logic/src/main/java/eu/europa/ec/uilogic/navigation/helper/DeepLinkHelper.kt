@@ -126,6 +126,15 @@ fun handleDeepLinkAction(
             return
         }
 
+        DeepLinkType.IPROOV -> {
+            notify(
+                navController.context,
+                CoreActions.IPROOV_RESULT_ACTION,
+                bundleOf(Pair("uri", action.link.toString()))
+            )
+            return
+        }
+
         DeepLinkType.EXTERNAL -> {
             navController.context.openUrl(action.link)
             return
@@ -192,6 +201,10 @@ enum class DeepLinkType(val schemas: List<String>, val host: String? = null) {
         schemas = listOf(BuildConfig.ISSUE_AUTHORIZATION_SCHEME),
         host = BuildConfig.ISSUE_AUTHORIZATION_HOST
     ),
+    IPROOV(
+        schemas = listOf(Uri.parse(BuildConfig.DEEPLINK).scheme.orEmpty()),
+        host = "iproov"
+    ),
     EXTERNAL(
         emptyList()
     ),
@@ -219,6 +232,10 @@ enum class DeepLinkType(val schemas: List<String>, val host: String? = null) {
 
             ISSUANCE.schemas.contains(scheme) && host == ISSUANCE.host -> {
                 ISSUANCE
+            }
+
+            IPROOV.schemas.contains(scheme) && host == IPROOV.host -> {
+                IPROOV
             }
 
             RQES.schemas.contains(scheme) && host == RQES.host -> {

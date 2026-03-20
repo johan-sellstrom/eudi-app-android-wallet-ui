@@ -19,6 +19,8 @@ package eu.europa.ec.presentationfeature.ui.loading
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavController
 import eu.europa.ec.commonfeature.ui.loading.LoadingScreen
+import eu.europa.ec.corelogic.util.CoreActions
+import eu.europa.ec.uilogic.component.content.BroadcastAction
 
 @Composable
 fun PresentationLoadingScreen(
@@ -27,6 +29,14 @@ fun PresentationLoadingScreen(
 ) {
     LoadingScreen(
         navController = navController,
-        viewModel = viewModel
+        viewModel = viewModel,
+        broadcastAction = BroadcastAction(
+            intentFilters = listOf(CoreActions.IPROOV_RESULT_ACTION)
+        ) { intent ->
+            viewModel.handleIProovCallback(
+                callbackUri = intent?.extras?.getString("uri"),
+                context = navController.context
+            )
+        }
     )
 }

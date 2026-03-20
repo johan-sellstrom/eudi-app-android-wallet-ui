@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import eu.europa.ec.uilogic.component.content.BroadcastAction
 import eu.europa.ec.uilogic.component.content.ContentHeader
 import eu.europa.ec.uilogic.component.content.ContentScreen
 import eu.europa.ec.uilogic.component.content.ScreenNavigateAction
@@ -40,7 +41,8 @@ import kotlinx.coroutines.flow.onEach
 @Composable
 fun LoadingScreen(
     navController: NavController,
-    viewModel: LoadingViewModel
+    viewModel: LoadingViewModel,
+    broadcastAction: BroadcastAction? = null,
 ) {
     val state: State by viewModel.viewState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -57,7 +59,8 @@ fun LoadingScreen(
         } else {
             null
         },
-        contentErrorConfig = state.error
+        contentErrorConfig = state.error,
+        broadcastAction = broadcastAction
     ) { paddingValues ->
         Content(
             state = state,

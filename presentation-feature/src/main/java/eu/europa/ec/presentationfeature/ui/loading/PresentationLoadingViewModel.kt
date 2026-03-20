@@ -23,6 +23,9 @@ import eu.europa.ec.commonfeature.ui.loading.Effect
 import eu.europa.ec.commonfeature.ui.loading.Event
 import eu.europa.ec.commonfeature.ui.loading.LoadingViewModel
 import eu.europa.ec.corelogic.model.AuthenticationData
+import eu.europa.ec.presentationfeature.iproov.IProovCallbackResult
+import eu.europa.ec.presentationfeature.iproov.IProovPreparationResult
+import eu.europa.ec.presentationfeature.iproov.IProovPresentationGate
 import eu.europa.ec.presentationfeature.interactor.PresentationLoadingInteractor
 import eu.europa.ec.presentationfeature.interactor.PresentationLoadingObserveResponsePartialState
 import eu.europa.ec.presentationfeature.interactor.PresentationLoadingSendRequestedDocumentPartialState
@@ -31,6 +34,7 @@ import eu.europa.ec.resourceslogic.provider.ResourceProvider
 import eu.europa.ec.uilogic.component.content.ContentErrorConfig
 import eu.europa.ec.uilogic.component.content.ContentHeaderConfig
 import eu.europa.ec.uilogic.config.NavigationType
+import eu.europa.ec.uilogic.extension.openUrl
 import eu.europa.ec.uilogic.navigation.PresentationScreens
 import eu.europa.ec.uilogic.navigation.Screen
 import kotlinx.coroutines.delay
@@ -44,7 +48,10 @@ import kotlin.time.toDuration
 class PresentationLoadingViewModel(
     private val resourceProvider: ResourceProvider,
     private val interactor: PresentationLoadingInteractor,
+    private val iproovPresentationGate: IProovPresentationGate,
 ) : LoadingViewModel() {
+
+    private var awaitingIProovCallback = false
 
     override fun getHeaderConfig(): ContentHeaderConfig {
         return ContentHeaderConfig(
@@ -94,7 +101,7 @@ class PresentationLoadingViewModel(
                     }
 
                     is PresentationLoadingObserveResponsePartialState.RequestReadyToBeSent -> {
-                        sendRequestedDocuments(Event.DoWork(context))
+                        sendRequestedDocuments(Event.DoWork(context), context)
                     }
 
                     is PresentationLoadingObserveResponsePartialState.UserAuthenticationRequired -> {
@@ -108,7 +115,7 @@ class PresentationLoadingViewModel(
                             popEffect,
                             it.authenticationData,
                             {
-                                sendRequestedDocuments(Event.DoWork(context))
+                                sendRequestedDocuments(Event.DoWork(context), context)
                             }
                         )
                     }
@@ -117,30 +124,88 @@ class PresentationLoadingViewModel(
         }
     }
 
-    private fun sendRequestedDocuments(event: Event) {
+    fun handleIProovCallback(
+        callbackUri: String?,
+        context: Context,
+    ) {
+        if (callbackUri.isNullOrBlank()) return
 
-        when (val result = interactor.sendRequestedDocuments()) {
-            is PresentationLoadingSendRequestedDocumentPartialState.Success -> { /*no op*/
-            }
+        viewModelScope.launch {
+            when (
+                val result = iproovPresentationGate.resolveCallback(
+                    uri = android.net.Uri.parse(callbackUri)
+                )
+            ) {
+                is IProovCallbackResult.Ignored -> Unit
+                is IProovCallbackResult.Passed -> {
+                    awaitingIProovCallback = false
+                    sendWalletRequestedDocuments(Event.DoWork(context))
+                }
 
-            is PresentationLoadingSendRequestedDocumentPartialState.Failure -> {
-                setState {
-                    copy(
-                        error = ContentErrorConfig(
-                            onRetry = { setEvent(event) },
-                            errorSubTitle = result.error,
-                            onCancel = {
-                                setEvent(Event.DismissError)
-                                doNavigation(
-                                    NavigationType.PopTo(
-                                        getPreviousScreen()
-                                    )
-                                )
-                            }
-                        )
+                is IProovCallbackResult.Failure -> {
+                    awaitingIProovCallback = false
+                    showSendError(
+                        event = Event.DoWork(context),
+                        message = result.error
                     )
                 }
             }
+        }
+    }
+
+    private fun sendRequestedDocuments(
+        event: Event,
+        context: Context,
+    ) {
+        if (awaitingIProovCallback) return
+
+        viewModelScope.launch {
+            when (val result = iproovPresentationGate.prepareForPresentation()) {
+                is IProovPreparationResult.Disabled -> {
+                    sendWalletRequestedDocuments(event)
+                }
+
+                is IProovPreparationResult.Launch -> {
+                    awaitingIProovCallback = true
+                    context.openUrl(result.url)
+                }
+
+                is IProovPreparationResult.Failure -> {
+                    awaitingIProovCallback = false
+                    showSendError(event, result.error)
+                }
+            }
+        }
+    }
+
+    private fun sendWalletRequestedDocuments(event: Event) {
+        when (val result = interactor.sendRequestedDocuments()) {
+            is PresentationLoadingSendRequestedDocumentPartialState.Success -> Unit
+            is PresentationLoadingSendRequestedDocumentPartialState.Failure -> {
+                showSendError(event, result.error)
+            }
+        }
+    }
+
+    private fun showSendError(
+        event: Event,
+        message: String,
+    ) {
+        setState {
+            copy(
+                error = ContentErrorConfig(
+                    onRetry = { setEvent(event) },
+                    errorSubTitle = message,
+                    onCancel = {
+                        setEvent(Event.DismissError)
+                        doNavigation(
+                            NavigationType.PopTo(
+                                getPreviousScreen()
+                            )
+                        )
+                    }
+                )
+            )
         }
     }
 

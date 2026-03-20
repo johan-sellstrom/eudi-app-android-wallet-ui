@@ -25,6 +25,10 @@ plugins {
 
 extensions.configure<LibraryExtension>("android") {
     namespace = "eu.europa.ec.presentationfeature"
+    defaultConfig {
+        buildConfigField("boolean", "IPROOV_GATE_ENABLED", "true")
+        buildConfigField("String", "IPROOV_ISSUER_BASE_URL", "\"http://10.0.2.2:3001\"")
+    }
 }
 
 moduleConfig {
