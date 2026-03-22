@@ -26,7 +26,10 @@ import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 import java.io.InputStream
 import java.net.HttpURLConnection
+import java.net.URI
+import java.net.URLDecoder
 import java.net.URL
+import java.nio.charset.StandardCharsets
 
 sealed class IProovPreparationResult {
     data object Disabled : IProovPreparationResult()
@@ -170,7 +173,7 @@ internal sealed class ParsedIProovCallback {
 }
 
 internal fun buildIProovCallbackUrl(): String {
-    val scheme = Uri.parse(BuildConfig.DEEPLINK).scheme ?: "eudi-wallet"
+    val scheme = resolveWalletCallbackScheme()
     return "$scheme://iproov"
 }
 
@@ -178,12 +181,26 @@ internal fun parseIProovCallbackUri(
     uri: Uri,
     expectedSession: String?,
 ): ParsedIProovCallback {
-    val callbackScheme = Uri.parse(BuildConfig.DEEPLINK).scheme ?: "eudi-wallet"
-    if (uri.scheme != callbackScheme || uri.host != "iproov") {
+    return parseIProovCallback(uri.toString(), expectedSession)
+}
+
+internal fun parseIProovCallback(
+    callbackUrl: String,
+    expectedSession: String?,
+): ParsedIProovCallback {
+    val callbackUri = try {
+        URI(callbackUrl)
+    } catch (_: IllegalArgumentException) {
+        return ParsedIProovCallback.Failure("The iProov callback URL was invalid.")
+    }
+
+    val callbackScheme = resolveWalletCallbackScheme()
+    if (callbackUri.scheme != callbackScheme || callbackUri.host != "iproov") {
         return ParsedIProovCallback.Ignored
     }
 
-    val session = uri.getQueryParameter("session").orEmpty().trim()
+    val query = parseQueryParameters(callbackUri.rawQuery)
+    val session = query["session"].orEmpty().trim()
     if (session.isEmpty()) {
         return ParsedIProovCallback.Failure("The iProov callback is missing the session id.")
     }
@@ -192,13 +209,41 @@ internal fun parseIProovCallbackUri(
         return ParsedIProovCallback.Failure("The iProov callback did not match the active session.")
     }
 
-    val passed = uri.getQueryParameter("passed").equals("true", ignoreCase = true)
+    val passed = query["passed"].equals("true", ignoreCase = true)
     if (!passed) {
-        val reason = uri.getQueryParameter("reason").orEmpty().trim()
+        val reason = query["reason"].orEmpty().trim()
         return ParsedIProovCallback.Failure(reason.ifEmpty { DEFAULT_GATE_FAILURE })
     }
 
     return ParsedIProovCallback.Passed(session)
+}
+
+private fun resolveWalletCallbackScheme(): String {
+    val configuredDeepLink = BuildConfig.DEEPLINK.trim()
+    val configuredScheme = runCatching { URI(configuredDeepLink).scheme.orEmpty() }
+        .getOrDefault(configuredDeepLink.substringBefore("://", ""))
+        .trim()
+    return configuredScheme.ifEmpty { "eudi-wallet" }
+}
+
+private fun parseQueryParameters(rawQuery: String?): Map<String, String> {
+    if (rawQuery.isNullOrBlank()) return emptyMap()
+
+    return rawQuery
+        .split('&')
+        .asSequence()
+        .filter { it.isNotBlank() }
+        .map { entry ->
+            val parts = entry.split('=', limit = 2)
+            val key = decodeQueryComponent(parts[0])
+            val value = decodeQueryComponent(parts.getOrElse(1) { "" })
+            key to value
+        }
+        .toMap()
+}
+
+private fun decodeQueryComponent(value: String): String {
+    return URLDecoder.decode(value, StandardCharsets.UTF_8)
 }
 
 @Serializable

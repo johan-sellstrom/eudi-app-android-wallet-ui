@@ -13,10 +13,8 @@
  * ANY KIND, either express or implied. See the Licence for the specific language
  * governing permissions and limitations under the Licence.
  */
-
 package eu.europa.ec.presentationfeature.iproov
 
-import android.net.Uri
 import junit.framework.TestCase.assertEquals
 import org.junit.Test
 
@@ -29,8 +27,8 @@ class TestIProovPresentationGate {
 
     @Test
     fun `parseIProovCallbackUri ignores unrelated deep links`() {
-        val result = parseIProovCallbackUri(
-            uri = Uri.parse("openid4vp://request"),
+        val result = parseIProovCallback(
+            callbackUrl = "openid4vp://request",
             expectedSession = "session-123"
         )
 
@@ -39,8 +37,8 @@ class TestIProovPresentationGate {
 
     @Test
     fun `parseIProovCallbackUri fails when the session does not match`() {
-        val result = parseIProovCallbackUri(
-            uri = Uri.parse("eudi-wallet://iproov?session=session-999&passed=true"),
+        val result = parseIProovCallback(
+            callbackUrl = "eudi-wallet://iproov?session=session-999&passed=true",
             expectedSession = "session-123"
         )
 
@@ -52,8 +50,8 @@ class TestIProovPresentationGate {
 
     @Test
     fun `parseIProovCallbackUri returns passed when the session matches`() {
-        val result = parseIProovCallbackUri(
-            uri = Uri.parse("eudi-wallet://iproov?session=session-123&passed=true"),
+        val result = parseIProovCallback(
+            callbackUrl = "eudi-wallet://iproov?session=session-123&passed=true",
             expectedSession = "session-123"
         )
 
