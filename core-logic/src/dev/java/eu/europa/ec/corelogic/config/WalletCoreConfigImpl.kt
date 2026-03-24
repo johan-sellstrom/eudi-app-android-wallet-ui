@@ -25,8 +25,13 @@ import eu.europa.ec.eudi.wallet.issue.openid4vci.OpenId4VciManager
 import eu.europa.ec.eudi.wallet.issue.openid4vci.dpop.DPopConfig
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.ClientIdScheme
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.Format
+import eu.europa.ec.eudi.wallet.transfer.openId4vp.PreregisteredVerifier
 import eu.europa.ec.resourceslogic.R
 import kotlin.time.Duration.Companion.seconds
+
+private const val WORKSHOP_VERIFIER_CLIENT_ID = "verifier.ipid.me"
+private const val WORKSHOP_VERIFIER_API_URI = "https://verifier.ipid.me"
+private const val WORKSHOP_VERIFIER_LEGAL_NAME = "iProov Verifier"
 
 internal class WalletCoreConfigImpl(
     private val context: Context
@@ -47,7 +52,16 @@ internal class WalletCoreConfigImpl(
                         withClientIdSchemes(
                             listOf(
                                 ClientIdScheme.X509SanDns,
-                                ClientIdScheme.X509Hash
+                                ClientIdScheme.X509Hash,
+                                ClientIdScheme.Preregistered(
+                                    preregisteredVerifiers = listOf(
+                                        PreregisteredVerifier(
+                                            clientId = WORKSHOP_VERIFIER_CLIENT_ID,
+                                            verifierApi = WORKSHOP_VERIFIER_API_URI,
+                                            legalName = WORKSHOP_VERIFIER_LEGAL_NAME
+                                        )
+                                    )
+                                )
                             )
                         )
                         withSchemes(
